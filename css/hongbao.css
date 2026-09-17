@@ -131,6 +131,22 @@ body {
 }
 .chip.live { color: var(--gold); border-color: rgba(232, 194, 106, 0.55); }
 
+/* Every pressable thing on this page is the same object: a block seated in an
+ * indent. At rest the block stands proud of the socket floor — lit lip on top,
+ * its dark side showing underneath — and pressing it does not move it; the
+ * side and the shadow it casts simply disappear, which is what a block looks
+ * like when it is flush with the surface it sits in. The socket is drawn once
+ * per group and never moves; only the block changes. */
+.socket {
+  display: inline-flex;
+  padding: 2px;
+  background: rgba(0, 0, 0, 0.5);
+  clip-path: polygon(
+    4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px),
+    calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px
+  );
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9), inset 0 -1px 0 rgba(255, 226, 172, 0.12);
+}
 button.icon {
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(232, 194, 106, 0.22);
@@ -139,9 +155,11 @@ button.icon {
   height: 1.7rem;
   cursor: pointer;
   font-size: 0.78rem;
-  transition: color 0.2s, border-color 0.2s;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55));
+  transition: color 0.2s, border-color 0.2s, filter 0.09s, box-shadow 0.09s;
 }
 button.icon:hover { color: var(--gold); border-color: var(--gold); }
+button.icon:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35); }
 
 .fineprint {
   display: flex;
@@ -591,7 +609,7 @@ button.icon:hover { color: var(--gold); border-color: var(--gold); }
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.62rem 0.85rem;
+  padding: 0.53rem 0.85rem;
   border: 1px solid rgba(232, 194, 106, 0.16);
   background: rgba(0, 0, 0, 0.32);
   clip-path: polygon(
@@ -616,7 +634,17 @@ button.icon:hover { color: var(--gold); border-color: var(--gold); }
   font-variant-numeric: tabular-nums;
   outline: none;
 }
-.wager .presets { display: flex; gap: 0.3rem; }
+.wager .presets {
+  display: flex;
+  gap: 0.3rem;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.5);
+  clip-path: polygon(
+    6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px),
+    calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px
+  );
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.9), inset 0 -1px 0 rgba(255, 226, 172, 0.1);
+}
 
 /* Locked while a round is running.
  *
@@ -634,13 +662,16 @@ button.icon:hover { color: var(--gold); border-color: var(--gold); }
   background: rgba(232, 194, 106, 0.07);
   border: 1px solid rgba(232, 194, 106, 0.2);
   color: var(--gold);
-  padding: 0.24rem 0.52rem;
+  padding: 0.14rem 0.52rem;
   font: inherit;
   font-size: 0.72rem;
   cursor: pointer;
   clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55));
+  transition: background 0.15s, filter 0.09s, box-shadow 0.09s;
 }
 .wager .presets button:hover { background: rgba(232, 194, 106, 0.18); }
+.wager .presets button:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35); }
 
 /* -------------------------------------------------------------- controls */
 
@@ -648,14 +679,24 @@ button.icon:hover { color: var(--gold); border-color: var(--gold); }
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.65rem;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  clip-path: polygon(
+    10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px),
+    calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px
+  );
+  box-shadow: inset 0 4px 9px rgba(0, 0, 0, 0.92), inset 0 -1px 0 rgba(255, 226, 172, 0.12);
 }
 .controls.single { grid-template-columns: 1fr; }
 
-/* buttons are lacquered tiles: flat, chamfered, with a hard drop edge */
+/* the action blocks: same lacquer and foil as before, but seated in the
+ * indent above — standing on their dark side at rest, flush when pressed.
+ * There is no transform on purpose: the socket holds still, and the block
+ * sinking is drawn entirely by the side and shadow going away. */
 button.action {
   position: relative;
   border: none;
-  padding: 0.88rem 1rem;
+  padding: 0.5rem 1rem;
   font: inherit;
   font-weight: 600;
   font-size: 0.96rem;
@@ -667,15 +708,16 @@ button.action {
     8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px),
     calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px
   );
-  filter: drop-shadow(0 4px 0 #6d5322) drop-shadow(0 9px 16px rgba(0, 0, 0, 0.5));
-  transition: transform 0.11s, filter 0.11s;
+  box-shadow: inset 0 1px 0 rgba(255, 250, 225, 0.5);
+  filter: drop-shadow(0 3px 0 #6d5322) drop-shadow(0 7px 12px rgba(0, 0, 0, 0.42));
+  transition: filter 0.09s, box-shadow 0.09s;
 }
 button.action:active:not(:disabled) {
-  transform: translateY(3px);
-  filter: drop-shadow(0 1px 0 #6d5322) drop-shadow(0 4px 9px rgba(0, 0, 0, 0.45));
+  filter: none;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 250, 225, 0.12);
 }
 button.action:disabled {
-  filter: grayscale(0.75) brightness(0.5) drop-shadow(0 4px 0 #26241f);
+  filter: grayscale(0.75) brightness(0.5);
   cursor: not-allowed;
 }
 button.action .sub {
@@ -696,10 +738,12 @@ button.action .sub {
 button.action.ghost {
   color: var(--text);
   background: linear-gradient(174deg, #8e1a2a 0%, var(--lacquer) 50%, var(--lacquer-deep) 100%);
-  filter: drop-shadow(0 4px 0 #2d060d) drop-shadow(0 9px 16px rgba(0, 0, 0, 0.5));
+  box-shadow: inset 0 1px 0 rgba(255, 214, 180, 0.22);
+  filter: drop-shadow(0 3px 0 #2d060d) drop-shadow(0 7px 12px rgba(0, 0, 0, 0.42));
 }
 button.action.ghost:active:not(:disabled) {
-  filter: drop-shadow(0 1px 0 #2d060d) drop-shadow(0 4px 9px rgba(0, 0, 0, 0.45));
+  filter: none;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 214, 180, 0.1);
 }
 
 @media (max-width: 620px) {
@@ -713,8 +757,9 @@ button.action.ghost:active:not(:disabled) {
   .table { gap: 0.28rem; }
   .face .amount b { font-size: 0.7rem; }
   .face .amount i { font-size: 0.48rem; }
-  .controls { gap: 0.45rem; }
-  button.action { font-size: 0.86rem; padding: 0.74rem 0.5rem; }
+  .wager { padding-block: 0.56rem; }
+  .controls { gap: 0.45rem; padding: 5px; }
+  button.action { font-size: 0.86rem; padding: 0.4rem 0.5rem; }
   .fineprint { font-size: 0.55rem; }
 }
 
