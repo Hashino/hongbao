@@ -31,7 +31,7 @@ const COIN_H = Math.round(COIN_W * SQUASH);
 const COLS = 6;
 const ROWS = 2;
 const STACK_MIN = 4;   // any shorter and it does not read as a stack at all
-const RISE = 5.6;      // how far up the screen each coin in a stack sits
+const RISE = 5.6;      // how far up the screen each coin in a stack sits, at most
 const LIFT = 46;       // how far a coin rises as it leaves, or falls as it arrives
 const UP_MS = 280;     // rising off a stack and fading out
 const DOWN_MS = 240;   // appearing over the far side and settling onto it
@@ -44,6 +44,27 @@ let box = null;                       // the two wells, measured
 let stacks = { pot: [], bank: [] };   // [{ x, y, coins: [el] }]
 let timers = [];
 let perStack = STACK_MIN;             // set from the round's coin count
+let rise = RISE;                      // and the spacing that height has to fit in
+
+/**
+ * How far up the screen each coin in a stack sits.
+ *
+ * RISE is what it wants to be. A shallow well — a short viewport, mostly —
+ * cannot hold a full stack at that spacing and still leave the daylight the
+ * row in front of it needs, and a stack that does not fit climbs out over the
+ * wall to stand on the table. So the spacing is squashed until the tallest
+ * stack fits: the coins bite deeper into one another, and nothing leaves the
+ * well. Both wells are cut to one depth, so one figure serves both.
+ */
+function computeRise() {
+  if (!box) return;
+  const s = baseScale();
+  const w = box.far;
+  const depth = w.bottom - COIN_H * s * 0.5 - w.top;
+  const gap = Math.min(COIN_H * s * 1.4, depth * 0.3);
+  const room = Math.max(0, depth - gap * (ROWS - 1));
+  rise = Math.max(1.8, Math.min(RISE * s, room / Math.max(1, perStack - 1)));
+}
 
 const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -98,6 +119,7 @@ export function measure(matEl) {
     bottom: m.bottom,
   };
 
+  computeRise();
   reseat("pot");
   reseat("bank");
   return box;
@@ -106,34 +128,37 @@ export function measure(matEl) {
 /**
  * Where the stacks stand inside a well.
  *
- * Each side anchors its stacks against one wall of its well and steps away
- * from it row by row. The dragon anchors at the far wall, so his money keeps
- * its distance from the envelopes instead of crowding them; yours anchors at
- * the near wall, on your side of the table.
+ * Both wells are laid out the same way: row 0 stands against the wall furthest
+ * from the player and each row after it steps forward, toward him.
  *
- * Which wall matters because a stack grows upward from its seat. Anchoring at
- * the far wall means starting a full stack's height below it, so the top coin
- * lands on the wall rather than climbing out over it.
+ * That order is what makes a second row worth having. A stack grows upward
+ * from its seat, so a row seated behind another is hidden by it, while a row
+ * seated in front of another leaves its neighbour's top coins showing over the
+ * near edge — which is how a table with money on it actually looks. Anchoring
+ * at the back also means starting a full stack's height below that wall, so
+ * the top coin lands on the wall rather than climbing out over it.
  *
- * Row 0 hugs the anchor wall and fills first, and each row fills from its
- * middle outward — the order a person stacks chips in, which keeps a
- * part-filled well looking deliberate instead of gap-toothed.
+ * Each row fills from its middle outward — the order a person stacks chips in,
+ * which keeps a part-filled well looking deliberate instead of gap-toothed.
  */
 function seats(side) {
   const far = side === "pot";
   const w = far ? box.far : box.near;
   const s = baseScale();
   const gapX = Math.min((w.right - w.left) / COLS, COIN_W * s * 1.9);
-  const tall = (perStack - 1) * RISE * s;
-  // The dragon keeps clear of the envelopes: the row nearest them stops half a
-  // coin short of that wall. Without this the rows fill the well wall to wall
-  // by construction, and on a big wager his money ends up against the cards.
-  const floor = far ? w.bottom - COIN_H * s * 0.5 : w.bottom;
+  const tall = (perStack - 1) * rise;
+  // How close the front row may come to the near lip of its well. The dragon's
+  // front row stops half a coin short of the envelopes; yours sits a touch off
+  // the bottom edge, because money banked reads better lifted slightly clear
+  // of it. Without either, the rows fill the well wall to wall by construction
+  // and a big wager ends up pressed against whatever is on the other side.
+  const clear = COIN_H * s * (far ? 0.5 : 0.42);
+  const floor = w.bottom - clear;
   // whatever depth is left once the tallest stack has its room
   const spare = Math.max(0, floor - w.top - tall);
   const gapY = Math.min(spare / Math.max(1, ROWS - 1), COIN_H * s * 1.4);
-  const base = far ? w.top + tall : w.bottom;
-  const step = far ? gapY : -gapY;
+  const base = w.top + tall;
+  const step = gapY;
 
   const out = [];
   for (let r = 0; r < ROWS; r++) {
@@ -199,7 +224,7 @@ function scaleAt(y) {
 function place(el, st, k, lifted) {
   const s = scaleAt(st.y);
   const x = st.x - (COIN_W * s) / 2;
-  const y = st.y - (COIN_H * s) / 2 - k * RISE * s - (lifted ? LIFT * s : 0);
+  const y = st.y - (COIN_H * s) / 2 - k * rise - (lifted ? LIFT * s : 0);
   el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) scale(${s.toFixed(3)})`;
   // near stacks in front of far ones, and within a stack the top coin in front
   el.style.zIndex = String(400 + Math.round(st.y) * 8 + k);
@@ -212,7 +237,12 @@ function openStack(side) {
   const list = stacks[side];
   for (const st of list) if (st.coins.length < perStack) return st;
   const spots = seats(side);
-  const spot = spots[list.length] ?? spots[spots.length - 1];
+  // every seat taken and every stack full: keep the cluster level by growing
+  // the shortest one rather than piling the overflow onto a single seat
+  if (list.length >= spots.length) {
+    return list.reduce((a, b) => (b.coins.length < a.coins.length ? b : a));
+  }
+  const spot = spots[list.length];
   const st = { x: spot.x, y: spot.y, coins: [] };
   list.push(st);
   return st;
@@ -293,6 +323,7 @@ export function pour(n, hooks = {}) {
   if (!box) return;
   // tall stacks for a big wager, not a carpet of loose coins
   perStack = Math.max(STACK_MIN, Math.ceil(n / (COLS * ROWS)));
+  computeRise();
   // and setting down a hundred coins must not take four times as long as ten
   const step = Math.min(26, 620 / Math.max(1, n));
   for (let i = 0; i < n; i++) {

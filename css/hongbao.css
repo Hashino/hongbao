@@ -131,20 +131,16 @@ body {
 }
 .chip.live { color: var(--gold); border-color: rgba(232, 194, 106, 0.55); }
 
-/* Every pressable thing on this page is the same object: a block seated in an
- * indent. At rest the block stands proud of the socket floor — lit lip on top,
+/* Every pressable thing on this page is the same object: a rectangular block
+ * seated in an indent. At rest the block stands proud of the socket floor — lit lip on top,
  * its dark side showing underneath — and pressing it does not move it; the
  * side and the shadow it casts simply disappear, which is what a block looks
  * like when it is flush with the surface it sits in. The socket is drawn once
  * per group and never moves; only the block changes. */
 .socket {
   display: inline-flex;
-  padding: 2px;
+  padding: 3px;
   background: rgba(0, 0, 0, 0.5);
-  clip-path: polygon(
-    4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px),
-    calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px
-  );
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9), inset 0 -1px 0 rgba(255, 226, 172, 0.12);
 }
 button.icon {
@@ -155,23 +151,64 @@ button.icon {
   height: 1.7rem;
   cursor: pointer;
   font-size: 0.78rem;
-  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55));
-  transition: color 0.2s, border-color 0.2s, filter 0.09s, box-shadow 0.09s;
+  filter: drop-shadow(2px 0 0 rgba(0, 0, 0, 0.62)) drop-shadow(0 3px 0 rgba(0, 0, 0, 0.8));
+  transition: color 0.2s, border-color 0.2s, filter 0.09s, box-shadow 0.09s, transform 0.09s;
 }
 button.icon:hover { color: var(--gold); border-color: var(--gold); }
-button.icon:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35); }
+/* the speaker is drawn in the button's own colour, so hover and mute move it
+ * without a second rule */
+button.icon svg {
+  display: block;
+  width: 0.98rem;
+  height: 0.98rem;
+  margin: auto;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+}
+button.icon.off { color: rgba(169, 154, 138, 0.45); }
+button.icon:active { filter: none; transform: translateY(3px); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35); }
 
 .fineprint {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  padding-right: 11rem; /* clear of the jam widget badge */
+  padding-right: 11rem; /* clear of the jam widget badge, which sits over this corner */
   white-space: nowrap;
   font-size: 0.62rem;
   color: var(--muted);
   letter-spacing: 0.02em;
 }
 .fineprint b { color: var(--gold-deep); font-weight: 600; }
+
+/* ---------------------------------------------------------- the shortcuts
+ * A legend under the buttons, in the order the buttons are in: the key on the
+ * left does the thing on the left. It is a caption, not a control — quiet
+ * enough to be read once and then ignored, and gone on a phone, where there
+ * is no keyboard to tell anyone about and the bar has no room to spare. */
+.keys {
+  display: flex;
+  gap: 1.1rem;
+  padding: 0.42rem 2px 0;
+  font-size: 0.6rem;
+  color: rgba(169, 154, 138, 0.6);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  user-select: none;
+}
+.keys span { display: inline-flex; align-items: center; gap: 0.36rem; }
+.keys kbd {
+  font: inherit;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  color: var(--gold-deep);
+  background: rgba(232, 194, 106, 0.07);
+  border: 1px solid rgba(232, 194, 106, 0.2);
+  padding: 0.06rem 0.34rem;
+  /* the same sliver of a side the buttons stand on, at a caption's scale */
+  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.5), 0 2px 0 rgba(0, 0, 0, 0.62);
+}
 .fineprint a { color: var(--gold-deep); text-decoration: none; border-bottom: 1px solid rgba(157, 122, 50, 0.4); }
 .fineprint a:hover { color: var(--gold); }
 
@@ -292,8 +329,11 @@ button.icon:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3
     0 -1px 0 rgba(0, 0, 0, 0.55);
 }
 
-.well.far  { height: clamp(96px, 17vh, 170px); }
-.well.near { height: clamp(78px, 13.5vh, 136px); }
+/* Both the same depth. They hold the same money — the dragon's pot can end up
+ * entirely on your side — so a shallower near well meant your stacks climbed
+ * out over its lip and stood on the envelopes exactly when you had won most. */
+.well.far,
+.well.near { height: clamp(96px, 17vh, 170px); }
 
 /* --------------------------------------------------------- coins
  * Coins are not laid out. They are position:fixed bodies driven by
@@ -418,17 +458,23 @@ button.icon:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3
   transition: transform 0.62s var(--ease);
 }
 
-/* the shadow the card casts back onto the table */
+/* The shadow the card casts back onto the table.
+ *
+ * Soft by gradient, not by filter. A blur() here put the shadow in a filtered
+ * layer, and a filtered layer gets clipped to its own bounds — so the part of
+ * the blur that belonged outside the box was cut off square, and what you saw
+ * under a turning card was the edge of a black rectangle. The falloff is in
+ * the gradient's own stops instead, which cannot be clipped because there is
+ * nothing painted out there to clip. */
 .env::after {
   content: "";
   position: absolute;
   z-index: 0;
-  left: 4%;
-  right: 4%;
-  top: 14%;
-  bottom: -7%;
-  background: radial-gradient(ellipse at 50% 62%, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.42) 45%, transparent 72%);
-  filter: blur(9px);
+  left: -6%;
+  right: -6%;
+  top: 8%;
+  bottom: -14%;
+  background: radial-gradient(ellipse at 50% 62%, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.5) 26%, rgba(0, 0, 0, 0.22) 48%, transparent 70%);
   transition: all 0.4s var(--ease);
   pointer-events: none;
 }
@@ -541,22 +587,46 @@ button.icon:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3
 .env.next {
   /* lifted off the table and straightened toward the player */
   transform: translateY(-9px) scale(1.03);
-  filter: brightness(1.14);
+}
+/* The light falls on the paper, not on the envelope.
+ *
+ * It was brightness(1.14) on .env, which swept the table shadow into the same
+ * filtered layer as the card — and that layer, clipped to its bounds, is what
+ * drew a hard black rectangle under the envelope about to be opened. A wash
+ * over the sealed face lights the same thing and leaves the shadow alone.
+ * .env.opened had the mirror of it, brightness(0.96), for a 4% dulling nobody
+ * could see and the same cost; it is gone. */
+.env.next .face.front::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(162deg, rgba(255, 233, 198, 0.17), rgba(255, 206, 166, 0.06));
+  pointer-events: none;
 }
 .env.next::after {
-  left: 0; right: 0; top: 24%; bottom: -14%;
-  background: radial-gradient(ellipse at 50% 62%, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.45) 48%, transparent 74%);
-  filter: blur(13px);
+  left: -10%; right: -10%; top: 16%; bottom: -22%;
+  background: radial-gradient(ellipse at 50% 62%, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.52) 26%, rgba(0, 0, 0, 0.24) 50%, transparent 72%);
 }
 
-.env.opened { filter: brightness(0.96); }
-
-/* 白包 — the colour drains out of the paper */
+/* 白包 — the white envelope.
+ *
+ * It turns exactly like the other five: the same transition on .card, the same
+ * duration, the same easing, no animation of its own. The only difference is
+ * the colour of the face it turns onto.
+ *
+ * It used to have a bespoke turn — slower, sagging, leaning a degree off true
+ * — and every version of it brought a new artefact along: the card moved
+ * inside its own .env, so the table shadow cast for a card that was not there
+ * any more kept showing round the edges as a hard rectangle below and left of
+ * the paper. Nothing to fix once the card stops moving anywhere the rest do
+ * not. The character of 白包 is in what it pays, not in how it turns.
+ *
+ * The sealed face stays red the whole way round: the envelope is only white on
+ * the inside, and that is where it should be found. */
 .env.white .face.back {
   background:
     repeating-linear-gradient(-74deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 5px),
     linear-gradient(162deg, #fbfaf7 0%, var(--white-env) 52%, #bdb9b1 100%);
-  animation: drain 0.8s var(--ease);
 }
 .env.white .face.back::before { border-color: rgba(120, 115, 108, 0.35); }
 .env.white::after { background: radial-gradient(ellipse at 50% 62%, rgba(255, 255, 255, 0.2) 0%, rgba(0, 0, 0, 0.55) 42%, transparent 74%); }
@@ -565,11 +635,24 @@ button.icon:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3
 
 .env.spent { opacity: 0.38; }
 
-@keyframes drain {
-  0% { filter: saturate(1); transform: scale(1); }
-  30% { transform: scale(1.05) rotate(-0.5deg); }
-  100% { filter: saturate(0.1); transform: scale(1); }
+/* The shadow turns with the card.
+ *
+ * It is cast by the envelope, so it cannot keep the width of one that is no
+ * longer facing you. Left alone it stood at full size while the paper went
+ * edge-on, and what you saw was a dark smear behind a sliver — the black line
+ * that crossed a turning envelope. The white one showed it every time: its
+ * back face is the brightest thing on the table, so anything dark behind it
+ * reads immediately, while a red face hides it against the mat.
+ *
+ * The duration is the .card transition's, so the shadow is at its narrowest
+ * in the same frame the card is. One rule covers all six envelopes, white
+ * included — they all turn the same way. */
+@keyframes flipshade {
+  0%   { transform: scaleX(1);    opacity: 1; }
+  50%  { transform: scaleX(0.12); opacity: 0.32; }
+  100% { transform: scaleX(1);    opacity: 1; }
 }
+.env.opened::after { animation: flipshade 0.62s var(--ease); }
 
 @keyframes pop {
   0% { transform: translateY(-9px) rotateX(-6deg) scale(1.03); }
@@ -639,10 +722,6 @@ button.icon:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3
   gap: 0.3rem;
   padding: 3px;
   background: rgba(0, 0, 0, 0.5);
-  clip-path: polygon(
-    6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px),
-    calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px
-  );
   box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.9), inset 0 -1px 0 rgba(255, 226, 172, 0.1);
 }
 
@@ -666,12 +745,11 @@ button.icon:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3
   font: inherit;
   font-size: 0.72rem;
   cursor: pointer;
-  clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
-  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55));
-  transition: background 0.15s, filter 0.09s, box-shadow 0.09s;
+  filter: drop-shadow(2px 0 0 rgba(0, 0, 0, 0.62)) drop-shadow(0 3px 0 rgba(0, 0, 0, 0.8));
+  transition: background 0.15s, filter 0.09s, box-shadow 0.09s, transform 0.09s;
 }
 .wager .presets button:hover { background: rgba(232, 194, 106, 0.18); }
-.wager .presets button:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35); }
+.wager .presets button:active { filter: none; transform: translateY(3px); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35); }
 
 /* -------------------------------------------------------------- controls */
 
@@ -681,10 +759,6 @@ button.icon:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3
   gap: 0.65rem;
   padding: 6px;
   background: rgba(0, 0, 0, 0.5);
-  clip-path: polygon(
-    10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px),
-    calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px
-  );
   box-shadow: inset 0 4px 9px rgba(0, 0, 0, 0.92), inset 0 -1px 0 rgba(255, 226, 172, 0.12);
 }
 .controls.single { grid-template-columns: 1fr; }
@@ -692,7 +766,14 @@ button.icon:active { filter: none; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3
 /* the action blocks: same lacquer and foil as before, but seated in the
  * indent above — standing on their dark side at rest, flush when pressed.
  * There is no transform on purpose: the socket holds still, and the block
- * sinking is drawn entirely by the side and shadow going away. */
+ * sinking is drawn entirely by the sides and shadow going away.
+ *
+ * Two faces, not one. The first drop-shadow is the right side of the block,
+ * a sliver; the second takes that whole silhouette down to draw the front
+ * face under it, so the corner where they meet is filled rather than notched.
+ * The right face is the thinner of the two because the light is nearly
+ * head-on, but it still has to be seen: at the 2px it started on, against a
+ * gold block on a near-black bar, it was not there at all. */
 button.action {
   position: relative;
   border: none;
@@ -704,16 +785,17 @@ button.action {
   cursor: pointer;
   color: #2a1608;
   background: linear-gradient(174deg, var(--gold-bright) 0%, var(--gold) 52%, #c19b3f 100%);
-  clip-path: polygon(
-    8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px),
-    calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px
-  );
   box-shadow: inset 0 1px 0 rgba(255, 250, 225, 0.5);
-  filter: drop-shadow(0 3px 0 #6d5322) drop-shadow(0 7px 12px rgba(0, 0, 0, 0.42));
-  transition: filter 0.09s, box-shadow 0.09s;
+  filter: drop-shadow(3px 0 0 #9c7a33) drop-shadow(0 6px 0 #8a6a2c)
+          drop-shadow(0 9px 14px rgba(0, 0, 0, 0.45));
+  transition: filter 0.09s, box-shadow 0.09s, transform 0.09s;
 }
-button.action:active:not(:disabled) {
+/* Pressed by hand or by shortcut — one look, so js/game.js only has to add a
+ * class rather than know how a sunken block is drawn. */
+button.action:active:not(:disabled),
+button.action.pressed:not(:disabled) {
   filter: none;
+  transform: translateY(5px);
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 250, 225, 0.12);
 }
 button.action:disabled {
@@ -739,10 +821,13 @@ button.action.ghost {
   color: var(--text);
   background: linear-gradient(174deg, #8e1a2a 0%, var(--lacquer) 50%, var(--lacquer-deep) 100%);
   box-shadow: inset 0 1px 0 rgba(255, 214, 180, 0.22);
-  filter: drop-shadow(0 3px 0 #2d060d) drop-shadow(0 7px 12px rgba(0, 0, 0, 0.42));
+  filter: drop-shadow(3px 0 0 #6d1626) drop-shadow(0 6px 0 #5c1220)
+          drop-shadow(0 9px 14px rgba(0, 0, 0, 0.45));
 }
-button.action.ghost:active:not(:disabled) {
+button.action.ghost:active:not(:disabled),
+button.action.ghost.pressed:not(:disabled) {
   filter: none;
+  transform: translateY(5px);
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 214, 180, 0.1);
 }
 
@@ -757,6 +842,7 @@ button.action.ghost:active:not(:disabled) {
   .table { gap: 0.28rem; }
   .face .amount b { font-size: 0.7rem; }
   .face .amount i { font-size: 0.48rem; }
+  .keys { display: none; }
   .wager { padding-block: 0.56rem; }
   .controls { gap: 0.45rem; padding: 5px; }
   button.action { font-size: 0.86rem; padding: 0.4rem 0.5rem; }
@@ -774,7 +860,6 @@ button.action.ghost:active:not(:disabled) {
 
 @media (max-width: 560px) {
   .fineprint { padding-right: 9.5rem; font-size: 0.6rem; }
-  .fineprint a { display: none; }
 }
 
 /* narrower than any current phone, but the 白包 text needs a fourth line here */

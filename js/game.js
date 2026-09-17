@@ -66,30 +66,42 @@ function envs() {
   return [...el.table.children];
 }
 
+/**
+ * Classes are toggled, never rewritten wholesale.
+ *
+ * Not for the reason it looks like: `env.className = "env"` followed by the
+ * same classes being re-added does *not* restart the animations keyed off
+ * them, because style changes inside one task are coalesced before they reach
+ * the animation timeline — measured, same `Animation` object either way. The
+ * reason is plainer: a wholesale rewrite silently drops any class this
+ * function does not know about, `popping` among them, and makes every render
+ * a rewrite of state it does not own.
+ */
 function renderTable() {
   envs().forEach((env, i) => {
     const reveal = state.reveals[i];
     const amount = env.querySelector(".amount b");
     const label = env.querySelector(".amount i");
-    env.className = "env";
 
-    if (reveal) {
-      env.classList.add("opened");
-      if (reveal.white) {
-        env.classList.add("white");
-        amount.textContent = "白包";
-        label.textContent = "empty";
-      } else {
-        amount.textContent = fmt(reveal.grab);
-        label.textContent = `+${multiplier(reveal.grab, state.wager)}×`;
-      }
-      return;
-    }
+    const opened = Boolean(reveal);
+    const white = opened && reveal.white;
+    const next = !opened && state.phase === "playing" && i === state.reveals.length;
+    const spent = !opened && (state.phase === "settled" || state.phase === "lost");
 
-    if (state.phase === "playing" && i === state.reveals.length) {
-      env.classList.add("next");
-    } else if (state.phase === "settled" || state.phase === "lost") {
-      env.classList.add("spent");
+    env.classList.toggle("opened", opened);
+    env.classList.toggle("white", white);
+    env.classList.toggle("next", next);
+    env.classList.toggle("spent", spent);
+    // the pop is owned by onOpen, and has never outlived the render after it
+    env.classList.remove("popping");
+
+    if (!opened) return;
+    if (white) {
+      amount.textContent = "白包";
+      label.textContent = "empty";
+    } else {
+      amount.textContent = fmt(reveal.grab);
+      label.textContent = `+${multiplier(reveal.grab, state.wager)}×`;
     }
   });
 }
@@ -315,6 +327,9 @@ function onOpen() {
   state.reveals.push({ white: result.white, grab: result.grab });
   renderTable(); // adds .opened, which starts the 3D turn
 
+  // All six turn the same way, over the .card transition's 0.62s. A grab is
+  // dealt with as soon as the inside comes round to face the player (~0.4s);
+  // 白包 ends the round, so it waits for the card to finish landing.
   setTimeout(() => {
     if (result.white) {
       state.phase = "lost";
@@ -347,7 +362,7 @@ function onOpen() {
 
     state.busy = false;
     render();
-  }, 380);
+  }, result.white ? 620 : 380);
 }
 
 function onKeep() {
@@ -371,20 +386,55 @@ el.wagerRow.querySelectorAll(".presets button").forEach((b) => {
   });
 });
 
+/* A speaker, drawn rather than typed: the one glyph every player already reads
+ * as sound. Muted is the same cone with the waves struck through, so the two
+ * states differ by the mark that means "off" and not by an unrelated symbol. */
+const SPEAKER = '<path d="M4 9h3.5L12 4.5v15L7.5 15H4z"/>';
+const WAVES = '<path d="M15.5 8.8a4.4 4.4 0 0 1 0 6.4M18 6a8 8 0 0 1 0 12" fill="none"/>';
+const CROSS = '<path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none"/>';
+const icon = (muted) => `<svg viewBox="0 0 24 24" aria-hidden="true">${SPEAKER}${muted ? CROSS : WAVES}</svg>`;
+
 el.mute.addEventListener("click", () => {
   const next = !sfx.isMuted();
   sfx.setMuted(next);
-  el.mute.textContent = next ? "♪̸" : "♪";
-  el.mute.style.opacity = next ? "0.45" : "1";
+  el.mute.innerHTML = icon(next);
+  el.mute.classList.toggle("off", next);
 });
 
+/**
+ * A shortcut presses the button; it does not reach past it.
+ *
+ * Going through .click() means the same handler runs, a disabled button stays
+ * inert, and there is one route into every action whichever way it was asked
+ * for. `.pressed` is the same declaration :active uses, held just long enough
+ * to be seen — without it the block never moves for a key, and the bar looks
+ * broken while it is working.
+ */
+function press(btn) {
+  if (!btn || btn.disabled) return;
+  btn.classList.add("pressed");
+  // Down first, act after — the block has to be seen going down, and clicking
+  // straight away rebuilds the controls and throws away the button that was
+  // holding the class. 90ms is the press transition's own duration.
+  setTimeout(() => {
+    btn.classList.remove("pressed");
+    btn.click();
+  }, 90);
+}
+
 document.addEventListener("keydown", (e) => {
+  // the first control is whatever the round is offering: flip, or play again
   if (e.key === " " || e.key === "Enter") {
     e.preventDefault();
-    if (state.phase === "playing") onOpen();
-    else onStart();
+    press(el.controls.querySelector("button"));
   }
-  if (e.key.toLowerCase() === "k" && state.phase === "playing") onKeep();
+  // Tab keeps, but only mid-round. That is the only time there is anything to
+  // keep, and the only time the wager row is locked out of the tab order
+  // anyway — outside a round Tab still walks the bar as it should.
+  if ((e.key === "Tab" || e.key.toLowerCase() === "k") && state.phase === "playing") {
+    e.preventDefault();
+    press(el.controls.querySelector("button.keep"));
+  }
 });
 
 buildTable();
