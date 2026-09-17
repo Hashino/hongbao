@@ -1,0 +1,738 @@
+/* HONGBAO 拼手气
+ *
+ * A game played on a rosewood table. Nothing here is rounded except the coins,
+ * which are 方孔钱 — round outside, square hole inside, "heaven round, earth
+ * square". Every panel is cut paper with chamfered corners.
+ *
+ * One number ties the scene together: TILT, the angle .surface leans away from
+ * the player. A coin lying on the mat is a circle seen at that angle, so its
+ * sprite is as tall as its width × cos(TILT) — and js/physics.js measures table
+ * depth with the same cosine. Change the rotateX below and both must follow.
+ */
+
+:root {
+  --ink: #0b0708;
+  --lacquer: #7a1220;
+  --lacquer-deep: #4a0a14;
+  --lacquer-lit: #b8202f;
+  --gold: #e8c26a;
+  --gold-bright: #f7e2a8;
+  --gold-deep: #9d7a32;
+  --paper: #f3ece0;
+  --pale: #d8d4cc;
+  --white-env: #e9e6df;
+  --text: #f0e6d8;
+  --muted: #a99a8a;
+
+  --wood: #3a1d14;
+  --wood-deep: #1c0d08;
+  --mat: #17100e;
+
+  --chamfer: 9px;
+  --shell: min(780px, 100vw - 1.5rem);
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --thud: cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ================================================================ layout
+ * Two worlds, deliberately not blended:
+ *   .hud    — the interface. Flat, dark, square, sits on the glass.
+ *   .felt   — the game. Rosewood, tilted away, only cards and coins on it.
+ */
+
+body {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  background: #080506;
+  font-family: "Hiragino Sans GB", "Noto Sans SC", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ hud */
+
+.hud {
+  flex: none;
+  background: linear-gradient(180deg, #0d0a0b 0%, #060404 100%);
+  z-index: 5;
+}
+.hud.top { border-bottom: 1px solid rgba(232, 194, 106, 0.2); box-shadow: 0 8px 26px rgba(0, 0, 0, 0.75); }
+.hud.bottom { border-top: 1px solid rgba(232, 194, 106, 0.2); box-shadow: 0 -8px 26px rgba(0, 0, 0, 0.75); }
+
+.hud-inner {
+  width: min(900px, 100% - 1.6rem);
+  margin: 0 auto;
+  padding: 0.7rem 0;
+}
+
+.hud.top .hud-inner {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1.4rem;
+}
+
+.hud.bottom .hud-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding-bottom: max(0.9rem, env(safe-area-inset-bottom));
+}
+
+.wordmark { display: flex; align-items: baseline; gap: 0.55rem; }
+.wordmark b {
+  font-size: 0.92rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--gold);
+}
+.wordmark span { font-size: 1.02rem; color: var(--lacquer-lit); letter-spacing: 0.1em; }
+
+/* the readouts are instruments, not objects: no depth, no ornament */
+.readouts {
+  display: flex;
+  justify-content: center;
+  gap: clamp(1.5rem, 6vw, 4rem);
+}
+.readout { display: flex; flex-direction: column; gap: 0.2rem; }
+.readout.right { align-items: flex-end; }
+.readout label {
+  font-size: 0.56rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.readout .value {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.32rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--paper);
+  letter-spacing: -0.01em;
+}
+.readout .value.gold { color: var(--gold-bright); }
+.readout .value small { font-size: 0.62rem; color: var(--muted); font-weight: 400; margin-left: 0.28rem; }
+
+.chips { display: flex; align-items: center; gap: 0.4rem; }
+
+.chip {
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid rgba(232, 194, 106, 0.22);
+  padding: 0.22rem 0.5rem;
+  background: rgba(0, 0, 0, 0.4);
+}
+.chip.live { color: var(--gold); border-color: rgba(232, 194, 106, 0.55); }
+
+button.icon {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(232, 194, 106, 0.22);
+  color: var(--muted);
+  width: 1.7rem;
+  height: 1.7rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: color 0.2s, border-color 0.2s;
+}
+button.icon:hover { color: var(--gold); border-color: var(--gold); }
+
+.fineprint {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-right: 11rem; /* clear of the jam widget badge */
+  white-space: nowrap;
+  font-size: 0.62rem;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.fineprint b { color: var(--gold-deep); font-weight: 600; }
+.fineprint a { color: var(--gold-deep); text-decoration: none; border-bottom: 1px solid rgba(157, 122, 50, 0.4); }
+.fineprint a:hover { color: var(--gold); }
+
+/* ----------------------------------------------------------------- felt */
+
+.felt {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+
+  /* rosewood: long grain, darker rays, a lamp somewhere above the table */
+  background:
+    radial-gradient(ellipse 72% 62% at 50% 40%, rgba(255, 218, 168, 0.2), transparent 74%),
+    repeating-linear-gradient(91deg,
+      rgba(0, 0, 0, 0.24) 0 1px,
+      rgba(0, 0, 0, 0.07) 1px 3px,
+      transparent 3px 9px),
+    repeating-linear-gradient(89.4deg,
+      rgba(0, 0, 0, 0.32) 0 2px,
+      transparent 2px 53px),
+    linear-gradient(168deg, #452419 0%, #2d1610 52%, var(--wood-deep) 100%);
+}
+
+/* the edges of the table fall away into the dark */
+.felt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 88% 92% at 50% 48%, transparent 52%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+/* everything physical lives on this plane, tilted away from the player */
+.surface {
+  position: relative;
+  z-index: 1;
+  width: min(660px, 100% - 2.5rem);
+
+  /* TILT — 15°. The coin sprite's proportions and physics.js's depth squash
+   * are both cos(15°); change this and change those. */
+  transform: perspective(1500px) rotateX(15deg);
+  transform-origin: center 68%;
+  transform-style: preserve-3d;
+}
+
+
+/* -------------------------------------------------------------- the mat
+ * A leather panel inlaid into the rosewood with a gold hairline. Everything
+ * physical rests on it, which is what stops the cards and coins reading as
+ * sprites hovering over a texture.
+ */
+.mat {
+  display: grid;
+  /* bounded track, so nothing inside can drag the table wider */
+  grid-template-columns: minmax(0, 1fr);
+  /* far wood, the card row, near wood */
+  grid-template-rows: auto minmax(0, auto) auto;
+  justify-items: center;
+  align-content: center;
+  gap: clamp(0.35rem, 1.6vh, 0.9rem);
+  padding: clamp(0.5rem, 1.8vh, 1rem) clamp(0.9rem, 3.4vw, 1.8rem) clamp(0.9rem, 2.8vh, 1.5rem);
+  transform-style: preserve-3d;
+
+  background:
+    radial-gradient(ellipse 66% 54% at 50% 46%, rgba(255, 222, 176, 0.075), transparent 72%),
+    repeating-linear-gradient(46deg, rgba(255, 255, 255, 0.011) 0 1px, transparent 1px 5px),
+    linear-gradient(172deg, #17110e 0%, #0e0a09 48%, #060404 100%);
+  /* the rim: a raised lip the coins rebound off instead of leaving the table */
+  box-shadow:
+    inset 0 0 0 1px rgba(232, 194, 106, 0.34),
+    inset 0 0 0 2px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 11px #35211a,
+    inset 0 0 0 12px rgba(255, 226, 172, 0.1),
+    inset 0 0 12px 12px rgba(0, 0, 0, 0.8),
+    inset 0 30px 56px rgba(0, 0, 0, 0.5),
+    0 22px 46px rgba(0, 0, 0, 0.72);
+  clip-path: polygon(
+    16px 0, calc(100% - 16px) 0, 100% 16px, 100% calc(100% - 16px),
+    calc(100% - 16px) 100%, 16px 100%, 0 calc(100% - 16px), 0 16px
+  );
+}
+
+/* ------------------------------------------------------------- the wells
+ * Two rectangular wells are cut into the tabletop, one on each side of the
+ * card row: the dragon's money sits in the far one, yours collects in the
+ * near one. They are the reason the coins stay put — physics.js measures
+ * these two elements and treats their walls as solid, so a coin can only
+ * leave a well by being thrown clear over the envelopes.
+ */
+
+.well {
+  position: relative;
+  /* narrower than the card row, so a ledge of tabletop shows down each side
+   * and all four walls of the cut are visible */
+  width: calc(100% - clamp(0.7rem, 2.6vw, 1.4rem));
+  border-radius: 3px;
+  /* the floor, a shade deeper than the mat around it */
+  background:
+    radial-gradient(ellipse 70% 120% at 50% 130%, rgba(255, 216, 160, 0.05), transparent 70%),
+    linear-gradient(177deg, #020101 0%, #090606 40%, #100b09 100%);
+  box-shadow:
+    /* the far wall, casting its shadow down into the well */
+    inset 0 9px 11px -4px rgba(0, 0, 0, 0.96),
+    /* the two side walls */
+    inset 9px 0 12px -7px rgba(0, 0, 0, 0.92),
+    inset -9px 0 12px -7px rgba(0, 0, 0, 0.92),
+    /* the near wall, which we look down the inside of, so it stays darker */
+    inset 0 -6px 9px -4px rgba(0, 0, 0, 0.85),
+    /* the cut edge itself: a hard dark line at the top of the wall and a
+     * machined highlight on the lip nearest the player */
+    inset 0 1px 0 rgba(0, 0, 0, 0.95),
+    inset 0 -1px 0 rgba(255, 228, 176, 0.14),
+    /* and the sliver of tabletop standing proud of the cut */
+    0 1px 0 rgba(255, 226, 172, 0.12),
+    0 -1px 0 rgba(0, 0, 0, 0.55);
+}
+
+.well.far  { height: clamp(96px, 17vh, 170px); }
+.well.near { height: clamp(78px, 13.5vh, 136px); }
+
+/* --------------------------------------------------------- coins
+ * Coins are not laid out. They are position:fixed bodies driven by
+ * js/physics.js, so all the stylesheet owns is what one 方孔钱 looks like.
+ */
+
+/* above the table, below the interface */
+#coin-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* 方孔钱 — round outside, square hole inside.
+ *
+ * The sprite is 36 × 35: a circle 36 wide, seen at the mat's own 15° lean, is
+ * 36 × cos(15°) ≈ 35 tall. That is the whole reason it sits *in* the table
+ * instead of standing up out of it — a flatter ellipse would be a coin seen
+ * from the side, on a table seen from above. js/physics.js derives its depth
+ * squash from the same cosine.
+ *
+ * Bronze, not gold leaf: cast, worn, and heavy enough to drop with a thud.
+ */
+.coin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 36px;
+  height: 35px;
+  pointer-events: none;
+  will-change: transform, opacity;
+  border-radius: 50%;
+  /* Only re-seating uses this — arriving and leaving set their own timing
+   * inline. It means a coin slides to a new seat if the table ever moves
+   * under it, rather than jumping there. */
+  transition: transform 200ms ease;
+  background:
+    /* the lamp, caught on the upper left of the disc */
+    radial-gradient(ellipse 46% 40% at 33% 17%, rgba(255, 253, 240, 0.8), transparent 72%),
+    /* cast bronze, bright along the top edge and dark where it turns away */
+    radial-gradient(ellipse 96% 104% at 42% 10%,
+      #fff2cf 0%, #f0d391 18%, #d6ac5c 40%, #a97e33 64%, #6f4f1a 85%, #3f2a0b 100%);
+  box-shadow:
+    /* the coin's thickness: solid bronze rings stepping down to the wood */
+    0 1px 0 #8b6520,
+    0 2px 0 #74521a,
+    0 3px 0 #563c11,
+    0 4px 0 #3a280b,
+    /* and the shadow it drops */
+    0 5px 6px rgba(0, 0, 0, 0.62),
+    /* the raised outer rim, catching light on top and dark underneath */
+    inset 0 1.5px 1px rgba(255, 250, 226, 0.72),
+    inset 0 -2px 2px rgba(52, 33, 5, 0.72);
+}
+
+/* the raised ring cast around the hole — 内郭 */
+.coin::before {
+  content: "";
+  position: absolute;
+  inset: 22%;
+  border-radius: 12%;
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 248, 220, 0.4),
+    inset 0 -1px 0.5px rgba(62, 41, 8, 0.5),
+    0 1px 0.5px rgba(255, 250, 228, 0.22);
+}
+
+/* 方孔 — the square hole, turning with the coin. It needs no squash of its own:
+ * the sprite it lives in is already foreshortened, so a square here is a square
+ * lying flat on the table. */
+.coin::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 31%;
+  height: 31%;
+  transform: translate(-50%, -50%) rotate(var(--spin, 0deg));
+  background: linear-gradient(168deg, #0a0602 0%, #1b1105 58%, #35240a 100%);
+  box-shadow:
+    inset 0 2px 2px rgba(0, 0, 0, 0.95),
+    0 -1px 0 rgba(255, 246, 212, 0.5),
+    0 1px 1px rgba(44, 28, 5, 0.8);
+}
+
+/* ------------------------------------------------------------- envelopes */
+
+.table {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: clamp(0.25rem, 1vw, 0.6rem);
+  width: 100%;
+  min-width: 0;
+  transform-style: preserve-3d;
+  /* the envelopes stand on the tabletop, not on the floor of the wells —
+   * lifting them off the plane is what makes the cut read as a cut */
+  transform: translateZ(10px);
+}
+
+/* A card is as tall as its own proportion makes it — never taller, or the
+ * track's min-content floor shoves the sixth envelope off the mat. */
+.env {
+  position: relative;
+  aspect-ratio: 0.63;
+  justify-self: stretch;
+  width: 100%;
+  min-width: 0;
+  max-width: 124px;
+  perspective: 900px;
+  transition: transform 0.4s var(--ease), filter 0.4s var(--ease), opacity 0.4s;
+}
+
+/* the card itself — two faces that turn together */
+.card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.62s var(--ease);
+}
+
+/* the shadow the card casts back onto the table */
+.env::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 4%;
+  right: 4%;
+  top: 14%;
+  bottom: -7%;
+  background: radial-gradient(ellipse at 50% 62%, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.42) 45%, transparent 72%);
+  filter: blur(9px);
+  transition: all 0.4s var(--ease);
+  pointer-events: none;
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  clip-path: polygon(
+    7px 0, calc(100% - 7px) 0, 100% 7px, 100% calc(100% - 7px),
+    calc(100% - 7px) 100%, 7px 100%, 0 calc(100% - 7px), 0 7px
+  );
+}
+
+/* sealed side: red paper, fibre, a soft fold down the middle */
+.face.front {
+  background:
+    repeating-linear-gradient(74deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(-63deg, rgba(0, 0, 0, 0.05) 0 1px, transparent 1px 6px),
+    linear-gradient(103deg, transparent 47%, rgba(255, 255, 255, 0.07) 50%, transparent 53%),
+    linear-gradient(162deg, var(--lacquer-lit) 0%, var(--lacquer) 46%, var(--lacquer-deep) 100%);
+}
+
+/* the flap seam, only on the sealed side */
+.face.front::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 44%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), transparent);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+  clip-path: polygon(0 0, 100% 0, 100% 52%, 50% 100%, 0 52%);
+}
+
+/* the inside of the envelope, seen once it is turned over */
+.face.back {
+  transform: rotateY(180deg);
+  background:
+    repeating-linear-gradient(-74deg, rgba(0, 0, 0, 0.06) 0 1px, transparent 1px 5px),
+    radial-gradient(ellipse 80% 55% at 50% 42%, rgba(232, 194, 106, 0.13), transparent 72%),
+    linear-gradient(162deg, #5d0d17 0%, var(--lacquer-deep) 55%, #2c060c 100%);
+}
+/* gold rule printed inside */
+.face.back::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 1px solid rgba(232, 194, 106, 0.28);
+  clip-path: polygon(
+    4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px),
+    calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px
+  );
+}
+
+.env.opened .card { transform: rotateY(180deg); }
+
+/* a square gold seal — a stamp pressed into the paper, not a button */
+.face .seal {
+  position: relative;
+  z-index: 1;
+  width: 40%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--lacquer-deep);
+  background: linear-gradient(152deg, var(--gold-bright) 0%, var(--gold) 46%, var(--gold-deep) 100%);
+  clip-path: polygon(
+    3px 0, calc(100% - 3px) 0, 100% 3px, 100% calc(100% - 3px),
+    calc(100% - 3px) 100%, 3px 100%, 0 calc(100% - 3px), 0 3px
+  );
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), inset 0 -1px 2px rgba(0, 0, 0, 0.28);
+  transition: opacity 0.3s;
+}
+.face .seal::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(74, 10, 20, 0.35);
+}
+
+.face .amount {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18rem;
+  font-variant-numeric: tabular-nums;
+  padding: 0.3rem;
+  text-align: center;
+}
+.face .amount b {
+  white-space: nowrap;
+  font-size: 0.95rem;
+  color: var(--gold-bright);
+  font-weight: 600;
+  line-height: 1.1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.face .amount i { font-style: normal; font-size: 0.57rem; color: rgba(243, 236, 224, 0.55); letter-spacing: 0.1em; }
+
+/* the one you are about to open: lifted, lit, eave catching the light */
+.env.next {
+  /* lifted off the table and straightened toward the player */
+  transform: translateY(-9px) scale(1.03);
+  filter: brightness(1.14);
+}
+.env.next::after {
+  left: 0; right: 0; top: 24%; bottom: -14%;
+  background: radial-gradient(ellipse at 50% 62%, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.45) 48%, transparent 74%);
+  filter: blur(13px);
+}
+
+.env.opened { filter: brightness(0.96); }
+
+/* 白包 — the colour drains out of the paper */
+.env.white .face.back {
+  background:
+    repeating-linear-gradient(-74deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 5px),
+    linear-gradient(162deg, #fbfaf7 0%, var(--white-env) 52%, #bdb9b1 100%);
+  animation: drain 0.8s var(--ease);
+}
+.env.white .face.back::before { border-color: rgba(120, 115, 108, 0.35); }
+.env.white::after { background: radial-gradient(ellipse at 50% 62%, rgba(255, 255, 255, 0.2) 0%, rgba(0, 0, 0, 0.55) 42%, transparent 74%); }
+.env.white .amount b { color: #5d5854; text-shadow: none; }
+.env.white .amount i { color: #8d8781; }
+
+.env.spent { opacity: 0.38; }
+
+@keyframes drain {
+  0% { filter: saturate(1); transform: scale(1); }
+  30% { transform: scale(1.05) rotate(-0.5deg); }
+  100% { filter: saturate(0.1); transform: scale(1); }
+}
+
+@keyframes pop {
+  0% { transform: translateY(-9px) rotateX(-6deg) scale(1.03); }
+  38% { transform: translateY(-22px) rotateX(-13deg) scale(1.08) rotate(-1.2deg); }
+  100% { transform: translateY(0) rotateX(0deg) scale(1) rotate(0deg); }
+}
+.env.popping { animation: pop 0.45s var(--ease); }
+
+/* --------------------------------------------------------------- message */
+
+/* Reserved by the line, not floored.
+ *
+ * min-height let a long message add a third line, which grew the bottom bar,
+ * shrank the felt above it and moved the table — with every coin measured
+ * against the wells in it. Two lines hold every message down to 620px wide;
+ * below that the 白包 text needs three. Shorter messages centre in the box. */
+.message {
+  --lines: 2;
+  height: calc(var(--lines) * 1.5em + 2px);
+  display: block;
+  overflow: hidden;
+  text-align: center;
+  text-wrap: balance;
+  max-width: 34rem;
+  margin: 0 auto;
+  font-size: 0.9rem;
+  color: var(--pale);
+  line-height: 1.5;
+}
+.message b { color: var(--gold-bright); font-weight: 600; }
+.message .zh { color: var(--lacquer-lit); letter-spacing: 0.08em; }
+.message.loss b { color: var(--white-env); }
+
+/* ---------------------------------------------------------------- wager */
+
+.wager {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.62rem 0.85rem;
+  border: 1px solid rgba(232, 194, 106, 0.16);
+  background: rgba(0, 0, 0, 0.32);
+  clip-path: polygon(
+    6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px),
+    calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px), 0 6px
+  );
+}
+.wager label {
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.wager input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--paper);
+  font: inherit;
+  font-size: 1.02rem;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+.wager .presets { display: flex; gap: 0.3rem; }
+
+/* Locked while a round is running.
+ *
+ * It keeps its whole box, presets included, because the bottom bar must not
+ * change height mid-game — the table sits on what is left of the viewport, and
+ * the coins are positioned against the wells in it. What is left is a reminder
+ * of what you staked, which is worth the room it takes. */
+.wager.locked {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.wager.locked .presets { visibility: hidden; }
+.wager input:disabled { color: var(--paper); opacity: 1; -webkit-text-fill-color: var(--paper); }
+.wager .presets button {
+  background: rgba(232, 194, 106, 0.07);
+  border: 1px solid rgba(232, 194, 106, 0.2);
+  color: var(--gold);
+  padding: 0.24rem 0.52rem;
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  clip-path: polygon(3px 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%, 0 3px);
+}
+.wager .presets button:hover { background: rgba(232, 194, 106, 0.18); }
+
+/* -------------------------------------------------------------- controls */
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+.controls.single { grid-template-columns: 1fr; }
+
+/* buttons are lacquered tiles: flat, chamfered, with a hard drop edge */
+button.action {
+  position: relative;
+  border: none;
+  padding: 0.88rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.96rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  color: #2a1608;
+  background: linear-gradient(174deg, var(--gold-bright) 0%, var(--gold) 52%, #c19b3f 100%);
+  clip-path: polygon(
+    8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px),
+    calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px), 0 8px
+  );
+  filter: drop-shadow(0 4px 0 #6d5322) drop-shadow(0 9px 16px rgba(0, 0, 0, 0.5));
+  transition: transform 0.11s, filter 0.11s;
+}
+button.action:active:not(:disabled) {
+  transform: translateY(3px);
+  filter: drop-shadow(0 1px 0 #6d5322) drop-shadow(0 4px 9px rgba(0, 0, 0, 0.45));
+}
+button.action:disabled {
+  filter: grayscale(0.75) brightness(0.5) drop-shadow(0 4px 0 #26241f);
+  cursor: not-allowed;
+}
+button.action .sub {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 500;
+  /* pinned: 拼手气 draws a taller line box than uppercase Latin at the same
+   * size, and the difference was enough to change the bar's height between
+   * "Play again" and "Flip card" */
+  line-height: 1.4;
+  height: 1.4em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-top: 0.16rem;
+}
+
+button.action.ghost {
+  color: var(--text);
+  background: linear-gradient(174deg, #8e1a2a 0%, var(--lacquer) 50%, var(--lacquer-deep) 100%);
+  filter: drop-shadow(0 4px 0 #2d060d) drop-shadow(0 9px 16px rgba(0, 0, 0, 0.5));
+}
+button.action.ghost:active:not(:disabled) {
+  filter: drop-shadow(0 1px 0 #2d060d) drop-shadow(0 4px 9px rgba(0, 0, 0, 0.45));
+}
+
+@media (max-width: 620px) {
+  .message { --lines: 3; }
+  .hud-inner { width: calc(100% - 1rem); }
+  .hud.top .hud-inner { grid-template-columns: 1fr auto; row-gap: 0.5rem; }
+  .wordmark b { font-size: 0.8rem; letter-spacing: 0.16em; }
+  .readouts { grid-column: 1 / -1; justify-content: space-between; }
+  .readout .value { font-size: 1.14rem; }
+  .surface { width: calc(100% - 0.8rem); gap: 0.5rem; }
+  .table { gap: 0.28rem; }
+  .face .amount b { font-size: 0.7rem; }
+  .face .amount i { font-size: 0.48rem; }
+  .controls { gap: 0.45rem; }
+  button.action { font-size: 0.86rem; padding: 0.74rem 0.5rem; }
+  .fineprint { font-size: 0.55rem; }
+}
+
+@media (max-height: 680px) {
+  .surface { gap: 0.35rem; }
+  .message { font-size: 0.82rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+@media (max-width: 560px) {
+  .fineprint { padding-right: 9.5rem; font-size: 0.6rem; }
+  .fineprint a { display: none; }
+}
+
+/* narrower than any current phone, but the 白包 text needs a fourth line here */
+@media (max-width: 370px) {
+  .message { --lines: 4; }
+}

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "gameId": "HongbaoGame",
+  "apiVersion": 1,
+  "defaultLocale": "en",
+  "locales": {
+    "en": {
+      "name": "Hongbao",
+      "description": "Six red envelopes hold a lucky split of the dragon's pot. One is white. Grab and bank, or keep what you have."
+    },
+    "zh": {
+      "name": "拼手气红包",
+      "description": "六个红包分抢彩金，其中一个是白包。继续抢，还是收手？"
+    },
+    "pt": {
+      "name": "Hongbao",
+      "description": "Seis envelopes vermelhos dividem o pote do dragão. Um é branco. Continue abrindo ou fique com o que juntou."
+    }
+  },
+  "presentation": {
+    "mode": "full-iframe",
+    "hostPanels": {
+      "openSession": false,
+      "history": false,
+      "status": false
+    }
+  },
+  "capabilities": {
+    "openSession": true,
+    "submitAction": true,
+    "forfeitExpiredSession": true,
+    "cancelStuckRandomness": true,
+    "resize": true
+  }
+}
